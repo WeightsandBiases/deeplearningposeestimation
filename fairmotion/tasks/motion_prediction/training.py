@@ -27,6 +27,18 @@ def set_seeds():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+def select_criterion(args):
+    if args.criterion == "ce":
+        criterion = nn.CrossEntropyLoss()
+    elif args.criterion == "nll":
+        criterion = nn.NLLLoss()
+    elif args.criterion == "bce":
+        criterion = nn.BCELoss()
+    elif args.criterion == "l1":
+        criterion = nn.L1Loss()
+    else:
+        criterion = nn.MSELoss()
+    return criterion
 
 def train(args):
     fairmotion_utils.create_dir_if_absent(args.save_model_path)
@@ -60,8 +72,9 @@ def train(args):
         num_layers=args.num_layers,
         architecture=args.architecture,
     )
+    
+    criterion = select_criterion(args)
 
-    criterion = nn.MSELoss()
     model.init_weights()
     training_losses, val_losses = [], []
 
@@ -230,6 +243,13 @@ if __name__ == "__main__":
         help="Torch optimizer",
         default="sgd",
         choices=["adam", "sgd", "noamopt"],
+    )
+    parser.add_argument(
+        "--criterion",
+        type=str,
+        help="Loss Function",
+        default="mse",
+        choices=["mse", "ce", "nll", "bce", "l1"],
     )
     args = parser.parse_args()
     main(args)
