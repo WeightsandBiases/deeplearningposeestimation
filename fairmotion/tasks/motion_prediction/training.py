@@ -28,14 +28,10 @@ def set_seeds():
     torch.backends.cudnn.benchmark = False
 
 def select_criterion(args):
-    if args.criterion == "ce":
-        criterion = nn.CrossEntropyLoss()
-    elif args.criterion == "nll":
-        criterion = nn.NLLLoss()
-    elif args.criterion == "bce":
-        criterion = nn.BCELoss()
-    elif args.criterion == "l1":
+    if args.criterion == "l1":
         criterion = nn.L1Loss()
+    elif args.criterion == "sl1":
+        criterion = nn.SmoothL1Loss()
     else:
         criterion = nn.MSELoss()
     return criterion
@@ -83,7 +79,7 @@ def train(args):
         model.eval()
         src_seqs, tgt_seqs = src_seqs.to(device), tgt_seqs.to(device)
         outputs = model(src_seqs, tgt_seqs, teacher_forcing_ratio=1,)
-        loss = criterion(outputs, tgt_seqs)
+        loss = criterion(outputs, tgt_seqs.to(torch.float).to(args.device))
         epoch_loss += loss.item()
     epoch_loss = epoch_loss / (iterations + 1)
     val_loss = generate.eval(
@@ -224,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--architecture",
         type=str,
-        help="Seq2Seq archtiecture to be used",
+        help="Seq2Seq architecture to be used",
         default="seq2seq",
         choices=[
             "seq2seq",
@@ -249,7 +245,7 @@ if __name__ == "__main__":
         type=str,
         help="Loss Function",
         default="mse",
-        choices=["mse", "ce", "nll", "bce", "l1"],
+        choices=["mse", "l1", "sl1"],
     )
     args = parser.parse_args()
     main(args)
