@@ -27,6 +27,14 @@ def set_seeds():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+def select_criterion(args):
+    if args.criterion == "l1":
+        criterion = nn.L1Loss()
+    elif args.criterion == "sl1":
+        criterion = nn.SmoothL1Loss()
+    else:
+        criterion = nn.MSELoss()
+    return criterion
 
 def train(args):
     fairmotion_utils.create_dir_if_absent(args.save_model_path)
@@ -60,8 +68,9 @@ def train(args):
         num_layers=args.num_layers,
         architecture=args.architecture,
     )
+    
+    criterion = select_criterion(args)
 
-    criterion = nn.MSELoss()
     model.init_weights()
     training_losses, val_losses = [], []
 
@@ -70,7 +79,7 @@ def train(args):
         model.eval()
         src_seqs, tgt_seqs = src_seqs.to(device), tgt_seqs.to(device)
         outputs = model(src_seqs, tgt_seqs, teacher_forcing_ratio=1,)
-        loss = criterion(outputs, tgt_seqs)
+        loss = criterion(outputs, tgt_seqs.to(torch.float).to(args.device))
         epoch_loss += loss.item()
     epoch_loss = epoch_loss / (iterations + 1)
     val_loss = generate.eval(
@@ -211,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--architecture",
         type=str,
-        help="Seq2Seq archtiecture to be used",
+        help="Seq2Seq architecture to be used",
         default="seq2seq",
         choices=[
             "seq2seq",
@@ -230,6 +239,13 @@ if __name__ == "__main__":
         help="Torch optimizer",
         default="sgd",
         choices=["adam", "sgd", "noamopt"],
+    )
+    parser.add_argument(
+        "--criterion",
+        type=str,
+        help="Loss Function",
+        default="mse",
+        choices=["mse", "l1", "sl1"],
     )
     args = parser.parse_args()
     main(args)
