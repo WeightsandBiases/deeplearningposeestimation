@@ -168,3 +168,8 @@ def prepare_tgt_seqs(architecture, src_seqs, tgt_seqs):
         return torch.cat((src_seqs[:, 1:], tgt_seqs), axis=1)
     else:
         return tgt_seqs
+
+
+def create_dir_if_absent(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
