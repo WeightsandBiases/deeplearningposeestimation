@@ -5,7 +5,6 @@ import numpy as np
 import os
 import torch
 from functools import partial
-from multiprocessing import Pool
 
 from fairmotion.models import (
     decoders,
@@ -59,18 +58,12 @@ def flatten_angles(arr, rep):
         return arr.reshape(arr.shape[:-3] + (-1))
 
 
-def multiprocess_convert(arr, convert_fn):
-    pool = Pool(40)
-    result = list(pool.map(convert_fn, arr))
-    return result
-
-
 def convert_fn_to_R(rep):
     ops = [partial(unflatten_angles, rep=rep)]
     if rep == "aa":
-        ops.append(partial(multiprocess_convert, convert_fn=conversions.A2R))
+        ops.append(partial(conversions.A2R))
     elif rep == "quat":
-        ops.append(partial(multiprocess_convert, convert_fn=conversions.Q2R))
+        ops.append(partial(conversions.Q2R))
     elif rep == "rotmat":
         ops.append(lambda x: x)
     ops.append(np.array)
