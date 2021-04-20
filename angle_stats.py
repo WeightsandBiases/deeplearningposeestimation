@@ -7,7 +7,7 @@ def GetStats(array):
 	percentile = np.transpose(np.percentile(array, np.linspace(0, 100, 101), 0))
 	return mean, stddev, percentile
 
-src_seqs, tgt_seqs = pickle.load(open('aa/test.pkl', "rb"))
+src_seqs, tgt_seqs = pickle.load(open('aa/train.pkl', "rb"))
 n_frames, n_velocities = 120, 119
 angle_array = np.concatenate([seq for seq in src_seqs])
 #  (change of angle)/frame.
@@ -24,7 +24,7 @@ angle_mean, angle_stddev, angle_percentile = GetStats(angle_array)
 velocity_mean, velocity_stddev, velocity_percentile = GetStats(velocity_array)
 acceleration_mean, acceleration_stddev, acceleration_percentile = GetStats(acceleration_array)
 
-pkl_file = open("stats.pkl", "wb")
+pkl_file = open("stats_train.pkl", "wb")
 pickle.dump(angle_mean, pkl_file)
 pickle.dump(angle_stddev, pkl_file)
 pickle.dump(angle_percentile, pkl_file)
