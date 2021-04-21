@@ -85,9 +85,9 @@ def select_criterion(args):
     elif args.criterion == "sl1":
         criterion = nn.SmoothL1Loss()
     elif args.criterion == "d":
-        criterion = MSEWithDeviationLoss()
+        criterion = MSEWithDeviationLoss(factor=args.factor)
     elif args.criterion == "o":
-        criterion = MSEWithOutlierLoss()
+        criterion = MSEWithOutlierLoss(factor=args.factor)
     else:
         criterion = nn.MSELoss()
     return criterion
