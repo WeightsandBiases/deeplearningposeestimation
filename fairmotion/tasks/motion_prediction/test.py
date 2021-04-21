@@ -101,7 +101,7 @@ def plot_mae_from_average(dfa, args):
     plt.plot(range(len(dfa)), dfa)
     plt.ylabel("MAE From Mean Pose")
     plt.xlabel("Frame")
-    plt.savefig(f"{args.save_output_path}/dfa.svg", format="svg")
+    plt.savefig(f"{args.save_output_path}/dfa.png", format="png")
 
 
 def calculate_metrics(pred_seqs, tgt_seqs):

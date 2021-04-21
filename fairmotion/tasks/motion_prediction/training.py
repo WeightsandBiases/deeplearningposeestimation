@@ -38,39 +38,70 @@ def get_train_stats():
             velocity_mean, velocity_stddev, velocity_percentile,
             acceleration_mean, acceleration_stddev, acceleration_percentile)
 
+def get_derivative(input):
+    return input[:, 1:, :] - input[:, :-1, :]
+
 class MSEWithDeviationLoss(nn.Module):
-    def __init__(self, factor=1):
+    def __init__(self, factor=1, cmp_type='pos'):
         super(MSEWithDeviationLoss, self).__init__()
         stats = get_train_stats()
-        self.mean_pose = torch.Tensor(stats[0])
-        self.std_pose = torch.Tensor(stats[1] + 1e-8)
+        self.cmp_type = cmp_type
+        if cmp_type == 'pos':
+            self.mean_pose = torch.Tensor(stats[0])
+            self.std_pose = torch.Tensor(stats[1] + 1e-8)
+        elif cmp_type == 'vel':
+            self.mean_pose = torch.Tensor(stats[3])
+            self.std_pose = torch.Tensor(stats[4] + 1e-8)
+        else:
+            self.mean_pose = torch.Tensor(stats[6])
+            self.std_pose = torch.Tensor(stats[7] + 1e-8)
+
         self.factor = factor
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        mean_tiled = self.mean_pose.expand(input.shape).type(input.dtype).to(input.device)
-        std_tiled = self.std_pose.expand(input.shape).type(input.dtype).to(input.device)
 
-        normalization = torch.abs((input - mean_tiled)/std_tiled*self.factor).mean()
+        value = input
+        if self.cmp_type == 'vel':
+            value = get_derivative(value)
+        elif self.cmp_type == 'acc':
+            value = get_derivative(get_derivative(value))
+
+        mean_tiled = self.mean_pose.expand(value.shape).type(value.dtype).to(value.device)
+        std_tiled = self.std_pose.expand(value.shape).type(value.dtype).to(value.device)
+
+        normalization = torch.abs((value - mean_tiled)/std_tiled*self.factor).mean()
         return F.mse_loss(input, target) + normalization
 
 
-
 class MSEWithOutlierLoss(nn.Module):
-    def __init__(self, factor=1):
+    def __init__(self, factor=1, cmp_type='pos', percentile=99):
         super(MSEWithOutlierLoss, self).__init__()
         stats = get_train_stats()
-        self.max_ranges = torch.Tensor(stats[2][:, 99].reshape(1, stats[2].shape[0]))
-        self.min_ranges = torch.Tensor(stats[2][:, 1].reshape(1, stats[2].shape[0]))
+        self.cmp_type = cmp_type
+        if cmp_type == 'pos':
+            self.max_ranges = torch.Tensor(stats[2][:, percentile].reshape(1, stats[2].shape[0]))
+            self.min_ranges = torch.Tensor(stats[2][:, 100-percentile].reshape(1, stats[2].shape[0]))
+        elif cmp_type == 'vel':
+            self.max_ranges = torch.Tensor(stats[5][:, percentile].reshape(1, stats[2].shape[0]))
+            self.min_ranges = torch.Tensor(stats[5][:, 100-percentile].reshape(1, stats[2].shape[0]))
+        else:
+            self.max_ranges = torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0]))
+            self.min_ranges = torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0]))
         self.factor = factor
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        max_tiled = self.max_ranges.expand(input.shape).type(input.dtype).to(input.device)
-        min_tiled = self.min_ranges.expand(input.shape).type(input.dtype).to(input.device)
+        value = input
+        if self.cmp_type == 'vel':
+            value = get_derivative(value)
+        elif self.cmp_type == 'acc':
+            value = get_derivative(get_derivative(value))
 
-        upper_error = (((torch.where(max_tiled > input, max_tiled, input) - max_tiled) * self.factor) ** 2).mean()
-        lower_error = (((torch.where(min_tiled < input, min_tiled, input) - min_tiled) * self.factor) ** 2).mean()
+        max_tiled = self.max_ranges.expand(value.shape).type(value.dtype).to(value.device)
+        min_tiled = self.min_ranges.expand(value.shape).type(value.dtype).to(value.device)
+
+        upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * self.factor) ** 2).mean()
+        lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * self.factor) ** 2).mean()
         return F.mse_loss(input, target) + upper_error + lower_error
-
 
 def set_seeds():
     torch.manual_seed(1)
@@ -85,9 +116,9 @@ def select_criterion(args):
     elif args.criterion == "sl1":
         criterion = nn.SmoothL1Loss()
     elif args.criterion == "d":
-        criterion = MSEWithDeviationLoss(factor=args.loss_factor)
+        criterion = MSEWithDeviationLoss(factor=args.loss_factor, cmp_type=args.cmp_type)
     elif args.criterion == "o":
-        criterion = MSEWithOutlierLoss(factor=args.loss_factor)
+        criterion = MSEWithOutlierLoss(factor=args.loss_factor, cmp_type=args.cmp_type, percentile=args.outlier_percentile)
     else:
         criterion = nn.MSELoss()
     return criterion
@@ -308,6 +339,14 @@ if __name__ == "__main__":
         help="Loss Function",
         default="mse",
         choices=["mse", "l1", "sl1", "d", "o"],
+    )
+    parser.add_argument(
+        "--outlier-percentile", type=int, help="Percentile for outlier loss bands", default=99,
+    )
+    parser.add_argument(
+        "--cmp-type", type=str, help="Loss type to use",
+        default="pos",
+        choices=["pos", "vel", "acc"],
     )
     args = parser.parse_args()
     main(args)
