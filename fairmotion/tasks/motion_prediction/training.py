@@ -85,9 +85,9 @@ def select_criterion(args):
     elif args.criterion == "sl1":
         criterion = nn.SmoothL1Loss()
     elif args.criterion == "d":
-        criterion = MSEWithDeviationLoss(factor=args.factor)
+        criterion = MSEWithDeviationLoss(factor=args.loss_factor)
     elif args.criterion == "o":
-        criterion = MSEWithOutlierLoss(factor=args.factor)
+        criterion = MSEWithOutlierLoss(factor=args.loss_factor)
     else:
         criterion = nn.MSELoss()
     return criterion
@@ -291,6 +291,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--factor", type=float, help="Factor for noamopt", default=2,
+    )
+    parser.add_argument(
+        "--loss-factor", type=float, help="Factor for loss function", default=1,
     )
     parser.add_argument(
         "--optimizer",
