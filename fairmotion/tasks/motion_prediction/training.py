@@ -93,7 +93,7 @@ def train(args):
 
     logging.info("Training model...")
     torch.autograd.set_detect_anomaly(True)
-    opt = utils.prepare_optimizer(model, args.optimizer, args.lr)
+    opt = utils.prepare_optimizer(model, args.optimizer, args.lr, args.factor)
     for epoch in range(args.epochs):
         epoch_loss = 0
         model.train()
@@ -232,6 +232,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--lr", type=float, help="Learning rate", default=None,
+    )
+    parser.add_argument(
+        "--factor", type=float, help="Factor for noamopt", default=2,
     )
     parser.add_argument(
         "--optimizer",

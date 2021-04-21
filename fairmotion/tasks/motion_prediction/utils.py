@@ -143,7 +143,7 @@ def log_config(path, args):
             f.write(f"{key}:{value}\n")
 
 
-def prepare_optimizer(model, opt: str, lr=None):
+def prepare_optimizer(model, opt: str, lr=None, factor=2):
     kwargs = {}
     if lr is not None:
         kwargs["lr"] = lr
@@ -153,7 +153,7 @@ def prepare_optimizer(model, opt: str, lr=None):
     elif opt == "adam":
         return optimizer.AdamOpt(model, **kwargs)
     elif opt == "noamopt":
-        return optimizer.NoamOpt(model)
+        return optimizer.NoamOpt(model, factor=factor)
 
 
 def prepare_tgt_seqs(architecture, src_seqs, tgt_seqs):
