@@ -41,6 +41,11 @@ def get_train_stats():
 def get_derivative(input):
     return input[:, 1:, :] - input[:, :-1, :]
 
+def zero_out_threshold(input, threshold):
+    input = torch.where(input < -threshold, input, 0)
+    input = torch.where(input > threshold, input, 0)
+    return input
+
 class MSEWithDeviationLoss(nn.Module):
     def __init__(self, factor=1, cmp_type='pos'):
         super(MSEWithDeviationLoss, self).__init__()
@@ -63,6 +68,7 @@ class MSEWithDeviationLoss(nn.Module):
         value = input
         if self.cmp_type == 'vel':
             value = get_derivative(value)
+            value = zero_out_threshold(value, 4)
         elif self.cmp_type == 'acc':
             value = get_derivative(get_derivative(value))
 
@@ -93,6 +99,8 @@ class MSEWithOutlierLoss(nn.Module):
         value = input
         if self.cmp_type == 'vel':
             value = get_derivative(value)
+            value = zero_out_threshold(value, 4)
+
         elif self.cmp_type == 'acc':
             value = get_derivative(get_derivative(value))
 
