@@ -60,7 +60,7 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
     )
 
 def get_derivative(data):
-    return data[:, 1:, :] - data[:, :-1, :]
+    return data[1:] - data[:-1]
 
 def zero_out_threshold(data, threshold=4):
     vel = get_derivative(data)
@@ -100,8 +100,8 @@ def process_split(
     src_seqs, tgt_seqs = [], []
     for worker_data in tqdm(data, ascii=True, desc="Processing Data"):
         s, t = worker_data
-        s = zero_out_threshold(s)
-        t = zero_out_threshold(t)
+        s = tuple([zero_out_threshold(s[0])])
+        t = tuple([zero_out_threshold(t[0])])
         src_seqs.extend(s)
         tgt_seqs.extend(t)
     logging.info(f"Processed {len(src_seqs)} sequences")
