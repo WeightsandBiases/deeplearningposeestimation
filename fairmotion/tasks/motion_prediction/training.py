@@ -42,8 +42,8 @@ def get_derivative(input):
     return input[:, 1:, :] - input[:, :-1, :]
 
 def zero_out_threshold(input, threshold):
-    input = torch.where(input < -threshold, 0, input)
-    input = torch.where(input > threshold, 0, input)
+    input = torch.where(input < -threshold, torch.zeros_like(input), input)
+    input = torch.where(input > threshold, torch.zeros_like(input), input)
     return input
 
 class MSEWithDeviationLoss(nn.Module):
