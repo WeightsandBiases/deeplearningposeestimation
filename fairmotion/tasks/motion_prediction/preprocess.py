@@ -59,6 +59,10 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
         ],
     )
 
+def zero_out_threshold(data, threshold=4):
+    data = np.where(data < -threshold, data, 0)
+    data = np.where(data > threshold, data, 0)
+    return data
 
 def process_split(
     all_fnames, output_path, rep, src_len, tgt_len, create_windows=None,
@@ -89,11 +93,11 @@ def process_split(
         lengths=(src_len, tgt_len),
     )
     logging.info("Paralleling Complete")
-    print(type(data))
     src_seqs, tgt_seqs = [], []
     for worker_data in tqdm(data, ascii=True, desc="Processing Data"):
-        import pdb; pdb.set_trace()
         s, t = worker_data
+        s = zero_out_threshold(s)
+        t = zero_out_threshold(t)
         src_seqs.extend(s)
         tgt_seqs.extend(t)
     logging.info(f"Processed {len(src_seqs)} sequences")
