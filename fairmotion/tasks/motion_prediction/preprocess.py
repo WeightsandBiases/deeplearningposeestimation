@@ -10,7 +10,7 @@ from fairmotion.data import amass_dip
 from fairmotion.ops import motion as motion_ops
 from fairmotion.tasks.motion_prediction import utils
 from fairmotion.utils import utils as fairmotion_utils
-
+from tqdm import tqdm
 
 logging.basicConfig(
     format="[%(asctime)s] %(message)s",
@@ -79,17 +79,20 @@ def process_split(
     """
     assert rep in ["aa", "rotmat", "quat"]
     convert_fn = utils.convert_fn_from_R(rep)
-
+    logging.info("Paralleling Processes")
     data = fairmotion_utils.run_parallel(
         process_file,
         all_fnames,
-        num_cpus=40,
+        num_cpus=8,
         create_windows=create_windows,
         convert_fn=convert_fn,
         lengths=(src_len, tgt_len),
     )
+    logging.info("Paralleling Complete")
+    print(type(data))
     src_seqs, tgt_seqs = [], []
-    for worker_data in data:
+    for worker_data in tqdm(data, ascii=True, desc="Processing Data"):
+        import pdb; pdb.set_trace()
         s, t = worker_data
         src_seqs.extend(s)
         tgt_seqs.extend(t)
@@ -153,6 +156,11 @@ if __name__ == "__main__":
         help="Window stride for test and validation, in frames. This is also"
         " used as training window size",
     )
+    parser.add_argument(
+        "--filter",
+        type=str,
+        default="False",
+        )
 
     args = parser.parse_args()
 
@@ -167,7 +175,7 @@ if __name__ == "__main__":
     train_ftuples = []
     test_ftuples = []
     validation_ftuples = []
-    for filepath in fairmotion_utils.files_in_dir(args.input_dir, ext="pkl"):
+    for filepath in tqdm(fairmotion_utils.files_in_dir(args.input_dir, ext="pkl"), ascii=True, desc="Sourcing Files"):
         db_name = os.path.split(os.path.dirname(filepath))[1]
         db_name = (
             "_".join(db_name.split("_")[1:])
