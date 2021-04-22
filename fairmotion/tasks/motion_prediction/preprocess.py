@@ -59,9 +59,13 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
         ],
     )
 
+def get_derivative(data):
+    return data[:, 1:, :] - data[:, :-1, :]
+
 def zero_out_threshold(data, threshold=4):
-    data = np.where(data < -threshold, data, 0)
-    data = np.where(data > threshold, data, 0)
+    vel = get_derivative(data)
+    data = np.where(vel < -threshold, 0, data)
+    data = np.where(vel > threshold, 0, data)
     return data
 
 def process_split(
