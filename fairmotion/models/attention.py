@@ -2,29 +2,10 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import LayerNorm
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
-from torch.nn import TransformerDecoder, TransformerDecoderLayer
+from torch.nn import TransformerEncoderLayer
 from torch.nn.init import xavier_uniform_
 
-from fairmotion.models import decoders
 import torch.nn.functional as F
-
-class FeedForwardLayer(nn.Module):
-    def __init__(self, d_model, dim_feedforward=2048, dropout=0.1):
-        super(FeedForwardLayer, self).__init__()
-        # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-
-        self.norm = LayerNorm(d_model)
-        self.dropout2 = nn.Dropout(dropout)
-
-    def forward(self, src):
-        src2 = self.linear2(self.dropout(F.relu(self.linear1(src))))
-        src = src + self.dropout2(src2)
-        return self.norm(src)
 
 class Attention(nn.Module):
     """RNN model for sequence prediction. The model uses a single RNN module to
@@ -76,7 +57,6 @@ class Attention(nn.Module):
 
         frame = self.frame_embedding(self.embed_idx.to(src.device)).transpose(0,1)
         pose = self.pose_embedding(src)
-        print(frame.shape, pose.shape)
         x = pose + frame
         x = self.attention1(x)
         x = self.attention2(x)
