@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 
-def split_into_windows(motion, window_size, stride):
+def split_into_windows(motion, window_size, stride, threshold=4):
     """
     Split motion object into list of motions with length window_size with
     the given stride.
@@ -29,6 +29,16 @@ def split_into_windows(motion, window_size, stride):
         motion_ops.cut(motion, start, start + window_size)
         for start in stride * np.arange(n_windows)
     ]
+    n_motion_ws = len(motion_ws)
+    for i, motion_obj in enumerate(motion_ws):
+        for motmat in motion_obj.to_matrix():
+            vel = get_derivative(motmat)
+            n_crosses = len(vel[np.where(vel < -threshold)]) + len(vel[np.where(vel > threshold)])
+            if n_crosses:
+                del motion_ws[i]
+    frames_deleted = n_motion_ws - len(motion_ws)
+    if frames_deleted:
+        logging.info("{} Frames Deleted Due to Crossing".format(frames_deleted))
     return motion_ws
 
 
@@ -60,7 +70,7 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
     )
 
 def get_derivative(data):
-    return data[1:] - data[:-1]
+    return data[:, 1:] - data[:, :-1]
 
 def zero_out_threshold(data, threshold=4):
     vel = get_derivative(data)
@@ -100,8 +110,6 @@ def process_split(
     src_seqs, tgt_seqs = [], []
     for worker_data in tqdm(data, ascii=True, desc="Processing Data"):
         s, t = worker_data
-        s = tuple([zero_out_threshold(s[0])])
-        t = tuple([zero_out_threshold(t[0])])
         src_seqs.extend(s)
         tgt_seqs.extend(t)
     logging.info(f"Processed {len(src_seqs)} sequences")
