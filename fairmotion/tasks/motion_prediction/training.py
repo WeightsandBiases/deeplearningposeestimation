@@ -42,8 +42,8 @@ def get_derivative(input):
     return input[:, 1:, :] - input[:, :-1, :]
 
 def zero_out_threshold(input, threshold):
-    input = torch.where(input < -threshold, 0, input)
-    input = torch.where(input > threshold, 0, input)
+    input = torch.where(input < -threshold, torch.zeros_like(input), input)
+    input = torch.where(input > threshold, torch.zeros_like(input), input)
     return input
 
 class MSEWithDeviationLoss(nn.Module):
@@ -69,8 +69,10 @@ class MSEWithDeviationLoss(nn.Module):
         if self.cmp_type == 'vel':
             value = get_derivative(value)
             value = zero_out_threshold(value, 4)
+
         elif self.cmp_type == 'acc':
             value = get_derivative(get_derivative(value))
+            value = zero_out_threshold(value, 4)
 
         mean_tiled = self.mean_pose.expand(value.shape).type(value.dtype).to(value.device)
         std_tiled = self.std_pose.expand(value.shape).type(value.dtype).to(value.device)
@@ -103,6 +105,7 @@ class MSEWithOutlierLoss(nn.Module):
 
         elif self.cmp_type == 'acc':
             value = get_derivative(get_derivative(value))
+            value = zero_out_threshold(value, 4)
 
         max_tiled = self.max_ranges.expand(value.shape).type(value.dtype).to(value.device)
         min_tiled = self.min_ranges.expand(value.shape).type(value.dtype).to(value.device)
