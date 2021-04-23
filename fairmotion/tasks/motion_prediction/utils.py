@@ -13,6 +13,7 @@ from fairmotion.models import (
     rnn,
     seq2seq,
     transformer,
+    attention
 )
 from fairmotion.tasks.motion_prediction import dataset as motion_dataset
 from fairmotion.utils import constants
@@ -131,6 +132,8 @@ def prepare_model(
         model = transformer.TransformerModel(
             input_dim, hidden_dim, 4, hidden_dim, num_layers,
         )
+    elif architecture == "attention":
+        model = attention.Attention(input_dim, hidden_dim, num_layers)
     model = model.to(device)
     model.zero_grad()
     model.double()

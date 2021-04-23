@@ -325,7 +325,8 @@ if __name__ == "__main__":
             "tied_seq2seq",
             "transformer",
             "transformer_encoder",
-            "rnn"
+            "rnn",
+            "attention"
         ],
     )
     parser.add_argument(
