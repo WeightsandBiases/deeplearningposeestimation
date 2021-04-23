@@ -8,8 +8,10 @@ import torch
 
 from fairmotion.data import amass_dip, bvh
 from fairmotion.core import motion as motion_class
-from fairmotion.tasks.motion_prediction import generate, metrics, utils
+from fairmotion.tasks.motion_prediction import generate, metrics, utils, test
 from fairmotion.ops import conversions, motion as motion_ops
+import matplotlib.pyplot as plt
+import pickle
 
 
 logging.basicConfig(
@@ -94,6 +96,14 @@ def save_motion_files(seqs_T, args):
     # )
 
 
+def plot_mae_from_average(dfa, args):
+
+    plt.plot(range(len(dfa)), dfa)
+    plt.ylabel("MAE From Mean Pose")
+    plt.xlabel("Frame")
+    plt.savefig(f"{args.save_output_path}/dfa.png", format="png")
+
+
 def calculate_metrics(pred_seqs, tgt_seqs):
     metric_frames = [6, 12, 18, 24]
     R_pred, _ = conversions.T2Rp(pred_seqs)
@@ -107,16 +117,24 @@ def calculate_metrics(pred_seqs, tgt_seqs):
     return mae
 
 
+def distance_from_avg_seq(pred_seqs, src_seqs):
+    pkl_file = open("stats_train.pkl", "rb")
+    angle_mean = pickle.load(pkl_file)
+    pkl_file.close()
+    return np.abs(pred_seqs - angle_mean).mean(axis=(0,2))
+
+
 def test_model(model, dataset, rep, device, mean, std, max_len=None):
     pred_seqs, src_seqs, tgt_seqs = run_model(
         model, dataset, max_len, device, mean, std,
     )
+    dfa = distance_from_avg_seq(pred_seqs, src_seqs)
     seqs_T = convert_to_T(pred_seqs, src_seqs, tgt_seqs, rep)
     # Calculate metric only when generated sequence has same shape as reference
     # target sequence
     if len(pred_seqs) > 0 and pred_seqs[0].shape == tgt_seqs[0].shape:
         mae = calculate_metrics(seqs_T[0], seqs_T[2])
-    return seqs_T, mae
+    return seqs_T, mae, dfa
 
 
 def main(args):
@@ -145,7 +163,7 @@ def main(args):
 
     logging.info("Running model")
     _, rep = os.path.split(args.preprocessed_path.strip("/"))
-    seqs_T, mae = test_model(
+    seqs_T, mae, dfa = test_model(
         model, dataset["test"], rep, device, mean, std, args.max_len
     )
     logging.info(
@@ -156,6 +174,7 @@ def main(args):
     if args.save_output_path:
         logging.info("Saving results")
         save_motion_files(seqs_T, args)
+        plot_mae_from_average(dfa, args)
 
 
 if __name__ == "__main__":
@@ -219,7 +238,7 @@ if __name__ == "__main__":
             "tied_seq2seq",
             "transformer",
             "transformer_encoder",
-            "rnn",
+            "rnn"
         ],
     )
 
