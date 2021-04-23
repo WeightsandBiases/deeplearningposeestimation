@@ -8,17 +8,6 @@ from torch.nn.init import xavier_uniform_
 import torch.nn.functional as F
 
 class Attention(nn.Module):
-    """RNN model for sequence prediction. The model uses a single RNN module to
-    take an input pose, and generates a pose prediction for the next time step.
-
-    Attributes:
-        input_dim: Size of input vector for each time step
-        hidden_dim: RNN hidden size
-        num_layers: Number of layers of RNN cells
-        dropout: Probability of an element to be zeroed
-        device: Device on which to run the RNN module
-    """
-
     def __init__(
         self,
         input_dim,
@@ -37,21 +26,11 @@ class Attention(nn.Module):
         self.project_to_output = nn.Linear(hidden_dim, input_dim)
 
     def init_weights(self):
-        """Initiate parameters in the transformer model."""
         for p in self.parameters():
             if p.dim() > 1:
                 xavier_uniform_(p)
 
     def forward(self, src, tgt, max_len=None, teacher_forcing_ratio=0.5):
-        """
-        Inputs:
-            src, tgt: Tensors of shape (batch_size, seq_len, input_dim)
-            max_len: Maximum length of sequence to be generated during
-                inference. Set None during training.
-            teacher_forcing_ratio: Probability of feeding gold target pose as
-                decoder input instead of predicted pose from previous time step
-        """
-        # convert src, tgt to (seq_len, batch_size, input_dim) format
 
         src = src.transpose(0, 1)
 
