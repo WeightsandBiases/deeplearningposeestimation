@@ -7,9 +7,11 @@ import os
 import pickle
 
 from fairmotion.data import amass_dip
+from fairmotion.ops import conversions
 from fairmotion.ops import motion as motion_ops
 from fairmotion.tasks.motion_prediction import utils
 from fairmotion.utils import utils as fairmotion_utils
+
 from tqdm import tqdm
 
 logging.basicConfig(
@@ -31,8 +33,9 @@ def split_into_windows(motion, window_size, stride, threshold=4):
     ]
     n_motion_ws = len(motion_ws)
     for i, motion_obj in enumerate(motion_ws):
-        for motmat in motion_obj.to_matrix():
-            vel = get_derivative(motmat)
+        for rotation in motion_obj.rotations():
+            aa = conversions.R2A(rotation)
+            vel = get_derivative(aa)
             n_crosses = len(vel[np.where(vel < -threshold)]) + len(vel[np.where(vel > threshold)])
             if n_crosses:
                 del motion_ws[i]
