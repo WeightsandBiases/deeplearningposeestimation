@@ -33,9 +33,13 @@ def split_into_windows(motion, window_size, stride, threshold=4):
     ]
     n_motion_ws = len(motion_ws)
     for i, motion_obj in enumerate(motion_ws):
-        for rotation in motion_obj.rotations():
-            aa = conversions.R2A(rotation)
-            vel = get_derivative(aa)
+        aa = conversions.R2A(motion_obj.rotations())
+        for j in range(len(aa)):
+            # skip 0th index where velocity cannot be computed
+            if j == 0:
+                continue
+            # element wise subtract
+            vel = np.subtract(aa[j], aa[j-1])
             n_crosses = len(vel[np.where(vel < -threshold)]) + len(vel[np.where(vel > threshold)])
             if n_crosses:
                 del motion_ws[i]
@@ -71,9 +75,6 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
             for matrix in matrices
         ],
     )
-
-def get_derivative(data):
-    return data[:, 1:] - data[:, :-1]
 
 def zero_out_threshold(data, threshold=4):
     vel = get_derivative(data)
