@@ -100,8 +100,8 @@ class MSEWithOutlierLoss(nn.Module):
                 self.max_ranges.append(torch.Tensor(stats[5][:, percentile].reshape(1, stats[2].shape[0])))
                 self.min_ranges.append(torch.Tensor(stats[5][:, 100-percentile].reshape(1, stats[2].shape[0])))
             elif type == 'acc':
-                self.max_ranges = torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0]))
-                self.min_ranges = torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0]))
+                self.max_ranges.append(torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0])))
+                self.min_ranges.append(torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0])))
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         running_total_loss = 0.
