@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pickle
+import copy
 
 from fairmotion.tasks.motion_prediction import generate, utils, test
 from fairmotion.utils import utils as fairmotion_utils
@@ -85,34 +86,40 @@ class MSEWithOutlierLoss(nn.Module):
     def __init__(self, factor=1, cmp_type='pos', percentile=99):
         super(MSEWithOutlierLoss, self).__init__()
         stats = get_train_stats()
-        self.cmp_type = cmp_type
-        if cmp_type == 'pos':
-            self.max_ranges = torch.Tensor(stats[2][:, percentile].reshape(1, stats[2].shape[0]))
-            self.min_ranges = torch.Tensor(stats[2][:, 100-percentile].reshape(1, stats[2].shape[0]))
-        elif cmp_type == 'vel':
-            self.max_ranges = torch.Tensor(stats[5][:, percentile].reshape(1, stats[2].shape[0]))
-            self.min_ranges = torch.Tensor(stats[5][:, 100-percentile].reshape(1, stats[2].shape[0]))
-        else:
-            self.max_ranges = torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0]))
-            self.min_ranges = torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0]))
-        self.factor = factor
+        self.cmp_types = cmp_type.split(',')
+        self.factors = str(factor).split(',')
+        self.min_ranges = []
+        self.max_ranges = []
+        for type in self.cmp_types:
+            if type == 'pos':
+                self.max_ranges.append(torch.Tensor(stats[2][:, percentile].reshape(1, stats[2].shape[0])))
+                self.min_ranges.append(torch.Tensor(stats[2][:, 100-percentile].reshape(1, stats[2].shape[0])))
+            elif type == 'vel':
+                self.max_ranges.append(torch.Tensor(stats[5][:, percentile].reshape(1, stats[2].shape[0])))
+                self.min_ranges.append(torch.Tensor(stats[5][:, 100-percentile].reshape(1, stats[2].shape[0])))
+            elif type == 'acc':
+                self.max_ranges = torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0]))
+                self.min_ranges = torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0]))
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        value = input
-        if self.cmp_type == 'vel':
-            value = get_derivative(value)
-            value = zero_out_threshold(value, 4)
+        running_total_loss = 0.
+        for i, type in enumerate(self.cmp_types):
+            value = copy.deepcopy(input)
+            if type == 'vel':
+                value = get_derivative(value)
+                value = zero_out_threshold(value, 4)
 
-        elif self.cmp_type == 'acc':
-            value = get_derivative(get_derivative(value))
-            value = zero_out_threshold(value, 4)
+            elif type == 'acc':
+                value = get_derivative(get_derivative(value))
+                value = zero_out_threshold(value, 4)
 
-        max_tiled = self.max_ranges.expand(value.shape).type(value.dtype).to(value.device)
-        min_tiled = self.min_ranges.expand(value.shape).type(value.dtype).to(value.device)
+            max_tiled = self.max_ranges[i].expand(value.shape).type(value.dtype).to(value.device)
+            min_tiled = self.min_ranges[i].expand(value.shape).type(value.dtype).to(value.device)
 
-        upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * self.factor) ** 2).mean()
-        lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * self.factor) ** 2).mean()
-        return F.mse_loss(input, target) + upper_error + lower_error
+            upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * self.factors[i]) ** 2).mean()
+            lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * self.factors[i]) ** 2).mean()
+            running_total_loss += F.mse_loss(input, target) + upper_error + lower_error
+        return running_total_loss
 
 def set_seeds():
     torch.manual_seed(1)
