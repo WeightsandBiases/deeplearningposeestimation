@@ -32,8 +32,12 @@ def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
         for start in stride * np.arange(n_windows)
     ]
     if drop_on == "vel":
+        # create idx here because when list is deleted
+        # the idx should shift
+        i = 0
         n_motion_ws = len(motion_ws)
-        for i, motion_obj in enumerate(motion_ws):
+        for motion_obj in motion_ws:
+            seq_deleted = False
             aa = conversions.R2A(motion_obj.rotations())
             for j in range(len(aa)):
                 # skip 0th index where velocity cannot be computed
@@ -44,6 +48,13 @@ def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
                 n_crosses = len(vel[np.where(vel < -threshold)]) + len(vel[np.where(vel > threshold)])
                 if n_crosses:
                     del motion_ws[i]
+                    seq_deleted = True
+                    break
+            # if item in list is deleted, counter should not move
+            # because the next element takes the place of the deleted element
+            if not seq_deleted:
+                i += 1
+
         frames_deleted = n_motion_ws - len(motion_ws)
         if frames_deleted:
             logging.info("{} Frames Deleted from Filtering".format(frames_deleted))
