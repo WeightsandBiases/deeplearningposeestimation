@@ -11,6 +11,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pickle
 
+# Need this to run on mac.
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 from fairmotion.tasks.motion_prediction import generate, utils, test
 from fairmotion.utils import utils as fairmotion_utils
 
@@ -41,7 +44,7 @@ def get_train_stats():
 def get_derivative(input):
     return input[:, 1:, :] - input[:, :-1, :]
 
-def zero_out_threshold(input, threshold):
+def zero_out_threshold(input, threshold=4):
     input = torch.where(input < -threshold, torch.zeros_like(input), input)
     input = torch.where(input > threshold, torch.zeros_like(input), input)
     return input
@@ -68,11 +71,11 @@ class MSEWithDeviationLoss(nn.Module):
         value = input
         if self.cmp_type == 'vel':
             value = get_derivative(value)
-            value = zero_out_threshold(value, 4)
+            value = zero_out_threshold(value)
 
         elif self.cmp_type == 'acc':
             value = get_derivative(get_derivative(value))
-            value = zero_out_threshold(value, 4)
+            value = zero_out_threshold(value)
 
         mean_tiled = self.mean_pose.expand(value.shape).type(value.dtype).to(value.device)
         std_tiled = self.std_pose.expand(value.shape).type(value.dtype).to(value.device)
@@ -85,34 +88,41 @@ class MSEWithOutlierLoss(nn.Module):
     def __init__(self, factor=1, cmp_type='pos', percentile=99):
         super(MSEWithOutlierLoss, self).__init__()
         stats = get_train_stats()
-        self.cmp_type = cmp_type
-        if cmp_type == 'pos':
-            self.max_ranges = torch.Tensor(stats[2][:, percentile].reshape(1, stats[2].shape[0]))
-            self.min_ranges = torch.Tensor(stats[2][:, 100-percentile].reshape(1, stats[2].shape[0]))
-        elif cmp_type == 'vel':
-            self.max_ranges = torch.Tensor(stats[5][:, percentile].reshape(1, stats[2].shape[0]))
-            self.min_ranges = torch.Tensor(stats[5][:, 100-percentile].reshape(1, stats[2].shape[0]))
-        else:
-            self.max_ranges = torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0]))
-            self.min_ranges = torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0]))
-        self.factor = factor
+        self.cmp_types = cmp_type.split(',')
+        self.factors = str(factor).split(',')
+        self.min_ranges = []
+        self.max_ranges = []
+        for type in self.cmp_types:
+            if type == 'pos':
+                self.max_ranges.append(torch.Tensor(stats[2][:, percentile].reshape(1, stats[2].shape[0])))
+                self.min_ranges.append(torch.Tensor(stats[2][:, 100-percentile].reshape(1, stats[2].shape[0])))
+            elif type == 'vel':
+                self.max_ranges.append(torch.Tensor(stats[5][:, percentile].reshape(1, stats[2].shape[0])))
+                self.min_ranges.append(torch.Tensor(stats[5][:, 100-percentile].reshape(1, stats[2].shape[0])))
+            elif type == 'acc':
+                self.max_ranges.append(torch.Tensor(stats[8][:, percentile].reshape(1, stats[2].shape[0])))
+                self.min_ranges.append(torch.Tensor(stats[8][:, 100-percentile].reshape(1, stats[2].shape[0])))
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        value = input
-        if self.cmp_type == 'vel':
-            value = get_derivative(value)
-            value = zero_out_threshold(value, 4)
+        running_total_loss = 0.
+        for i, type in enumerate(self.cmp_types):
+            value = input
+            if type == 'vel':
+                value = get_derivative(value)
+                value = zero_out_threshold(value, 4)
 
-        elif self.cmp_type == 'acc':
-            value = get_derivative(get_derivative(value))
-            value = zero_out_threshold(value, 4)
+            elif type == 'acc':
+                value = get_derivative(get_derivative(value))
+                value = zero_out_threshold(value, 4)
 
-        max_tiled = self.max_ranges.expand(value.shape).type(value.dtype).to(value.device)
-        min_tiled = self.min_ranges.expand(value.shape).type(value.dtype).to(value.device)
+            max_tiled = self.max_ranges[i].expand(value.shape).type(value.dtype).to(value.device)
+            min_tiled = self.min_ranges[i].expand(value.shape).type(value.dtype).to(value.device)
 
-        upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * self.factor) ** 2).mean()
-        lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * self.factor) ** 2).mean()
-        return F.mse_loss(input, target) + upper_error + lower_error
+            upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * float(self.factors[i])) ** 2).mean()
+            lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * float(self.factors[i])) ** 2).mean()
+            running_total_loss += upper_error
+            running_total_loss += lower_error
+        return F.mse_loss(input, target) + running_total_loss
 
 def set_seeds():
     torch.manual_seed(1)
@@ -337,7 +347,7 @@ if __name__ == "__main__":
         "--factor", type=float, help="Factor for noamopt", default=2,
     )
     parser.add_argument(
-        "--loss-factor", type=float, help="Factor for loss function", default=1,
+        "--loss-factor", type=str, help="Factor for loss function", default=str(1),
     )
     parser.add_argument(
         "--optimizer",
@@ -359,7 +369,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cmp-type", type=str, help="Loss type to use",
         default="pos",
-        choices=["pos", "vel", "acc"],
+        choices=["pos", "vel", "acc", "vel,acc", "acc,vel"],
     )
     args = parser.parse_args()
     main(args)
