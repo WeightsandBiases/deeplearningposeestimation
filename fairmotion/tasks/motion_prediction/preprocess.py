@@ -7,10 +7,12 @@ import os
 import pickle
 
 from fairmotion.data import amass_dip
+from fairmotion.ops import conversions
 from fairmotion.ops import motion as motion_ops
 from fairmotion.tasks.motion_prediction import utils
 from fairmotion.utils import utils as fairmotion_utils
 
+from tqdm import tqdm
 
 logging.basicConfig(
     format="[%(asctime)s] %(message)s",
@@ -19,7 +21,7 @@ logging.basicConfig(
 )
 
 
-def split_into_windows(motion, window_size, stride):
+def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
     """
     Split motion object into list of motions with length window_size with
     the given stride.
@@ -29,10 +31,26 @@ def split_into_windows(motion, window_size, stride):
         motion_ops.cut(motion, start, start + window_size)
         for start in stride * np.arange(n_windows)
     ]
+    if drop_on == "vel":
+        n_motion_ws = len(motion_ws)
+        for i, motion_obj in enumerate(motion_ws):
+            aa = conversions.R2A(motion_obj.rotations())
+            for j in range(len(aa)):
+                # skip 0th index where velocity cannot be computed
+                if j == 0:
+                    continue
+                # element wise subtract
+                vel = np.subtract(aa[j], aa[j-1])
+                n_crosses = len(vel[np.where(vel < -threshold)]) + len(vel[np.where(vel > threshold)])
+                if n_crosses:
+                    del motion_ws[i]
+        frames_deleted = n_motion_ws - len(motion_ws)
+        if frames_deleted:
+            logging.info("{} Frames Deleted from Filtering".format(frames_deleted))
     return motion_ws
 
 
-def process_file(ftuple, create_windows, convert_fn, lengths):
+def process_file(ftuple, create_windows, convert_fn, lengths, drop_on):
     src_len, tgt_len = lengths
     filepath, file_id = ftuple
     motion = amass_dip.load(filepath)
@@ -45,7 +63,7 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
         matrices = [
             convert_fn(motion.rotations())
             for motion in split_into_windows(
-                motion, window_size, window_stride
+                motion, window_size, window_stride, drop_on
             )
         ]
     else:
@@ -59,9 +77,8 @@ def process_file(ftuple, create_windows, convert_fn, lengths):
         ],
     )
 
-
 def process_split(
-    all_fnames, output_path, rep, src_len, tgt_len, create_windows=None,
+    all_fnames, output_path, rep, src_len, tgt_len, create_windows=None, drop_on=None
 ):
     """
     Process data into numpy arrays.
@@ -79,17 +96,19 @@ def process_split(
     """
     assert rep in ["aa", "rotmat", "quat"]
     convert_fn = utils.convert_fn_from_R(rep)
-
+    logging.info("Paralleling Processes")
     data = fairmotion_utils.run_parallel(
         process_file,
         all_fnames,
-        num_cpus=40,
+        num_cpus=8,
         create_windows=create_windows,
         convert_fn=convert_fn,
         lengths=(src_len, tgt_len),
+        drop_on=drop_on
     )
+    logging.info("Paralleling Complete")
     src_seqs, tgt_seqs = [], []
-    for worker_data in data:
+    for worker_data in tqdm(data, ascii=True, desc="Processing Data"):
         s, t = worker_data
         src_seqs.extend(s)
         tgt_seqs.extend(t)
@@ -153,6 +172,11 @@ if __name__ == "__main__":
         help="Window stride for test and validation, in frames. This is also"
         " used as training window size",
     )
+    parser.add_argument(
+        "--drop-on",
+        type=str,
+        default="",
+        )
 
     args = parser.parse_args()
 
@@ -167,7 +191,7 @@ if __name__ == "__main__":
     train_ftuples = []
     test_ftuples = []
     validation_ftuples = []
-    for filepath in fairmotion_utils.files_in_dir(args.input_dir, ext="pkl"):
+    for filepath in tqdm(fairmotion_utils.files_in_dir(args.input_dir, ext="pkl"), ascii=True, desc="Sourcing Files"):
         db_name = os.path.split(os.path.dirname(filepath))[1]
         db_name = (
             "_".join(db_name.split("_")[1:])
@@ -190,6 +214,10 @@ if __name__ == "__main__":
     fairmotion_utils.create_dir_if_absent(output_path)
 
     logging.info("Processing training data...")
+    if args.drop_on == "vel":
+        logging.info("Dropping frame seqences on velocity")
+    else:
+        logging.info("DropOn set off - Perserving all frames")
     train_dataset = process_split(
         train_ftuples,
         os.path.join(output_path, "train.pkl"),
@@ -197,6 +225,7 @@ if __name__ == "__main__":
         src_len=args.src_len,
         tgt_len=args.tgt_len,
         create_windows=(args.window_size, args.window_stride),
+        drop_on=args.drop_on
     )
 
     logging.info("Processing validation data...")
