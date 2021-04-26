@@ -345,7 +345,7 @@ if __name__ == "__main__":
         "--factor", type=float, help="Factor for noamopt", default=2,
     )
     parser.add_argument(
-        "--loss-factor", type=float, help="Factor for loss function", default=1,
+        "--loss-factor", type=str, help="Factor for loss function", default=str(1),
     )
     parser.add_argument(
         "--optimizer",
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cmp-type", type=str, help="Loss type to use",
         default="pos",
-        choices=["pos", "vel", "acc"],
+        choices=["pos", "vel", "acc", "vel,acc", "acc,vel"],
     )
     args = parser.parse_args()
     main(args)
