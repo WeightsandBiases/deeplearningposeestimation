@@ -10,7 +10,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pickle
-import copy
+
+# Need this to run on mac.
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 from fairmotion.tasks.motion_prediction import generate, utils, test
 from fairmotion.utils import utils as fairmotion_utils
@@ -42,7 +44,7 @@ def get_train_stats():
 def get_derivative(input):
     return input[:, 1:, :] - input[:, :-1, :]
 
-def zero_out_threshold(input, threshold):
+def zero_out_threshold(input, threshold=4):
     input = torch.where(input < -threshold, torch.zeros_like(input), input)
     input = torch.where(input > threshold, torch.zeros_like(input), input)
     return input
@@ -69,11 +71,11 @@ class MSEWithDeviationLoss(nn.Module):
         value = input
         if self.cmp_type == 'vel':
             value = get_derivative(value)
-            value = zero_out_threshold(value, 4)
+            value = zero_out_threshold(value)
 
         elif self.cmp_type == 'acc':
             value = get_derivative(get_derivative(value))
-            value = zero_out_threshold(value, 4)
+            value = zero_out_threshold(value)
 
         mean_tiled = self.mean_pose.expand(value.shape).type(value.dtype).to(value.device)
         std_tiled = self.std_pose.expand(value.shape).type(value.dtype).to(value.device)
@@ -104,7 +106,7 @@ class MSEWithOutlierLoss(nn.Module):
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         running_total_loss = 0.
         for i, type in enumerate(self.cmp_types):
-            value = copy.deepcopy(input)
+            value = input
             if type == 'vel':
                 value = get_derivative(value)
                 value = zero_out_threshold(value, 4)
@@ -116,8 +118,8 @@ class MSEWithOutlierLoss(nn.Module):
             max_tiled = self.max_ranges[i].expand(value.shape).type(value.dtype).to(value.device)
             min_tiled = self.min_ranges[i].expand(value.shape).type(value.dtype).to(value.device)
 
-            upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * self.factors[i]) ** 2).mean()
-            lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * self.factors[i]) ** 2).mean()
+            upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * float(self.factors[i])) ** 2).mean()
+            lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * float(self.factors[i])) ** 2).mean()
             running_total_loss += F.mse_loss(input, target) + upper_error + lower_error
         return running_total_loss
 
