@@ -13,7 +13,8 @@ from fairmotion.models import (
     rnn,
     seq2seq,
     transformer,
-    attention
+    attention,
+    st_attention
 )
 from fairmotion.tasks.motion_prediction import dataset as motion_dataset
 from fairmotion.utils import constants
@@ -134,6 +135,8 @@ def prepare_model(
         )
     elif architecture == "attention":
         model = attention.Attention(input_dim, hidden_dim, num_layers)
+    elif architecture == "st_attention":
+        model = st_attention.SpatioTemporalAttention(input_dim, hidden_dim)
     model = model.to(device)
     model.zero_grad()
     model.double()

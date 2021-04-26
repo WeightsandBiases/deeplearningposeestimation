@@ -239,7 +239,8 @@ if __name__ == "__main__":
             "transformer",
             "transformer_encoder",
             "rnn",
-            "attention"
+            "attention",
+            "st_attention"
         ],
     )
 
