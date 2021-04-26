@@ -120,8 +120,9 @@ class MSEWithOutlierLoss(nn.Module):
 
             upper_error = (((torch.where(max_tiled > value, max_tiled, value) - max_tiled) * float(self.factors[i])) ** 2).mean()
             lower_error = (((torch.where(min_tiled < value, min_tiled, value) - min_tiled) * float(self.factors[i])) ** 2).mean()
-            running_total_loss += F.mse_loss(input, target) + upper_error + lower_error
-        return running_total_loss
+            running_total_loss += upper_error
+            running_total_loss += lower_error
+        return F.mse_loss(input, target) + running_total_loss
 
 def set_seeds():
     torch.manual_seed(1)
