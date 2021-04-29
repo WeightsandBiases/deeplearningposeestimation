@@ -57,7 +57,7 @@ def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
 
         frames_deleted = n_motion_ws - len(motion_ws)
         if frames_deleted:
-            logging.info("{} Frames Deleted from Filtering".format(frames_deleted))
+            logging.info("{} frame sequences deleted during filtering".format(frames_deleted))
     return motion_ws
 
 
