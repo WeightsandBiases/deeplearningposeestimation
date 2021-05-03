@@ -105,7 +105,7 @@ def plot_mae_from_average(dfa, args):
 
 
 def calculate_metrics(pred_seqs, tgt_seqs):
-    metric_frames = [6, 12, 18, 24]
+    metric_frames = [0, 6, 12, 18, 24]
     R_pred, _ = conversions.T2Rp(pred_seqs)
     R_tgt, _ = conversions.T2Rp(tgt_seqs)
     euler_error = metrics.euler_diff(

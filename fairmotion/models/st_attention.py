@@ -30,7 +30,7 @@ class SpatioTemporalAttention(nn.Module):
         self,
         input_dim,
         hidden_dim=512,
-        num_layers=1,
+        nhead=1,
         dropout=0.1,
         device="cpu",
         src_length=120
@@ -39,11 +39,11 @@ class SpatioTemporalAttention(nn.Module):
         self.spatial_embedding = nn.Linear(input_dim, hidden_dim)
         self.temporal_idx = torch.as_tensor([range(src_length)])
         self.temporal_embedding = nn.Embedding(src_length, hidden_dim)
-        self.temporal_attn1 = TransformerEncoderLayer(hidden_dim, 8)
-        self.temporal_attn2 = TransformerEncoderLayer(hidden_dim, 4)
-        self.spatial_attn1 = TransformerEncoderLayer(src_length, 8)
-        self.spatial_attn2 = TransformerEncoderLayer(src_length, 4)
-        self.ff = FeedForwardLayer(hidden_dim)
+        self.temporal_attn1 = TransformerEncoderLayer(hidden_dim, nhead, dim_feedforward=2*hidden_dim, dropout=dropout)
+        self.temporal_attn2 = TransformerEncoderLayer(hidden_dim, nhead, dim_feedforward=2*hidden_dim, dropout=dropout)
+        self.spatial_attn1 = TransformerEncoderLayer(src_length, nhead, dim_feedforward=2*hidden_dim, dropout=dropout)
+        self.spatial_attn2 = TransformerEncoderLayer(src_length, nhead, dim_feedforward=2*hidden_dim, dropout=dropout)
+        self.ff = FeedForwardLayer(hidden_dim, dim_feedforward=1024, dropout=dropout)
         self.project_to_output = nn.Linear(hidden_dim, input_dim)
 
     def init_weights(self):
