@@ -58,9 +58,10 @@ def split_into_windows(motion, window_size, stride, drop_on, threshold=4, drop_p
                 i += 1
 
         frames_deleted = n_motion_ws - len(motion_ws)
+        metadata = (n_motion_ws, frames_deleted)
         if frames_deleted:
             logging.info("{} frame sequences deleted during filtering".format(frames_deleted))
-    return  [m for m in motion_ws if random.random() > drop_perc]
+    return  [m for m in motion_ws if random.random() > drop_perc], metadata
 
 
 def process_file(ftuple, create_windows, convert_fn, lengths, drop_on, drop_perc=0.0):
@@ -72,7 +73,7 @@ def process_file(ftuple, create_windows, convert_fn, lengths, drop_on, drop_perc
     if create_windows is not None:
         window_size, window_stride = create_windows
         if motion.num_frames() < window_size:
-            return [], []
+            return [], [], metadata
         matrices = list()
         motions, metadata = split_into_windows(motion, window_size, window_stride, drop_on, drop_perc=drop_perc)
         for motion in motions:
