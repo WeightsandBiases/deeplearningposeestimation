@@ -20,7 +20,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-
 def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
     """
     Split motion object into list of motions with length window_size with
@@ -31,6 +30,7 @@ def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
         motion_ops.cut(motion, start, start + window_size)
         for start in stride * np.arange(n_windows)
     ]
+    metadata = tuple()
     if drop_on == "vel":
         # create idx here because when list is deleted
         # the idx should shift
@@ -55,10 +55,11 @@ def split_into_windows(motion, window_size, stride, drop_on, threshold=4):
             if not seq_deleted:
                 i += 1
 
-        frames_deleted = n_motion_ws - len(motion_ws)
-        if frames_deleted:
-            logging.info("{} frame sequences deleted during filtering".format(frames_deleted))
-    return motion_ws
+        n_seqs_deleted = n_motion_ws - len(motion_ws)
+        if n_seqs_deleted:
+            logging.info("{} frame sequences deleted during filtering".format(n_seqs_deleted))
+        metadata = (n_motion_ws, n_seqs_deleted)
+    return (motion_ws, metadata)
 
 
 def process_file(ftuple, create_windows, convert_fn, lengths, drop_on):
@@ -66,17 +67,15 @@ def process_file(ftuple, create_windows, convert_fn, lengths, drop_on):
     filepath, file_id = ftuple
     motion = amass_dip.load(filepath)
     motion.name = file_id
-
+    metadata = None
     if create_windows is not None:
         window_size, window_stride = create_windows
         if motion.num_frames() < window_size:
             return [], []
-        matrices = [
-            convert_fn(motion.rotations())
-            for motion in split_into_windows(
-                motion, window_size, window_stride, drop_on
-            )
-        ]
+        matrices = list()
+        motions, metadata = split_into_windows(motion, window_size, window_stride, drop_on)
+        for motion in motions:
+            matrices.append(convert_fn(motion.rotations()))
     else:
         matrices = [convert_fn(motion.rotations())]
 
@@ -86,6 +85,7 @@ def process_file(ftuple, create_windows, convert_fn, lengths, drop_on):
             matrix[src_len : src_len + tgt_len, ...].reshape((tgt_len, -1))
             for matrix in matrices
         ],
+        metadata,
     )
 
 def process_split(
@@ -119,11 +119,20 @@ def process_split(
     )
     logging.info("Paralleling Complete")
     src_seqs, tgt_seqs = [], []
+    n_frame_seq_total = 0
+    n_frame_seq_deleted = 0
     for worker_data in tqdm(data, ascii=True, desc="Processing Data"):
-        s, t = worker_data
+        s, t, metadata = worker_data
+        if metadata:
+            seq_total, seq_deleted = metadata
+            n_frame_seq_total += seq_total
+            n_frame_seq_deleted += seq_deleted
         src_seqs.extend(s)
         tgt_seqs.extend(t)
     logging.info(f"Processed {len(src_seqs)} sequences")
+    if n_frame_seq_deleted:
+        logging.info("n_seqs_total {}, n_seqs_deleted: {}".format(n_frame_seq_total, n_frame_seq_deleted))
+        logging.info("pct deleted {}".format(n_frame_seq_deleted / n_frame_seq_total * 100))
     pickle.dump((src_seqs, tgt_seqs), open(output_path, "wb"))
 
 
