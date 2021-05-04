@@ -136,7 +136,7 @@ def prepare_model(
     elif architecture == "attention":
         model = attention.Attention(input_dim, hidden_dim, num_layers)
     elif architecture == "st_attention":
-        model = st_attention.SpatioTemporalAttention(input_dim, hidden_dim)
+        model = st_attention.SpatioTemporalAttention(input_dim, hidden_dim, nhead=num_layers)
     model = model.to(device)
     model.zero_grad()
     model.double()
